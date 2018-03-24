@@ -8,18 +8,32 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
-	path string
+	path    string
+	timeout int
+	score   int
 )
 
 func main() {
 	parse()
 	csvData := read()
-    quizzes := getQuizzes(csvData)
+	quizzes := getQuizzes(csvData)
 
-	var score int
+	done := make(chan bool)
+	go play(quizzes, done)
+	select {
+	case <-time.After((time.Duration(timeout)) * time.Second):
+		fmt.Println("\nTime's up!")
+		fmt.Printf("Your score is: %v!\n", score)
+	case <-done:
+		fmt.Printf("Your score is: %v!\n", score)
+	}
+}
+
+func play(quizzes []quiz, done chan bool) {
 	for i, q := range quizzes {
 		fmt.Printf("Problem #%v: %v = ", i+1, q.question)
 		var input int
@@ -29,10 +43,12 @@ func main() {
 		}
 	}
 	fmt.Printf("You scored %v out of %v\n", score, len(quizzes))
+	done <- true
 }
 
 func parse() {
 	flag.StringVar(&path, "file", "problems.csv", "path to the csv file")
+	flag.IntVar(&timeout, "timeout", 100, "duration to run the quiz")
 	flag.Parse()
 }
 
@@ -46,7 +62,6 @@ func checkError(err error) {
 func read() string {
 	absPath, err := filepath.Abs(path)
 	checkError(err)
-
 
 	data, err := ioutil.ReadFile(absPath)
 	checkError(err)
